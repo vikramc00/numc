@@ -1,26 +1,25 @@
-# numc
+# Numc
+Implemented a slower version of numpy.
 
-Here's what I did in project 4:
--
-In this project, we had to make a python-c interface so that C code could be run under the hood while the user calls everything in python. Much of this interface was implemeneted in numc.c. We received inputs as various types of PyObjects and had to parse them to get the data we needed. The types of data included a 61c_matrix, a tuple, a slice, and an int. After getting the data we needed, we could call the functions that performed the logic necessary to get the desired output. These functions only dealt with regular c objects and were implemented in matrix.c. In order to enable the python and C code to interact, we also had to enable the user to import the module. To do this, we read the python extension documentation and instantiated an extension based on the C files and set it up. 
+### Design
+In this project, I had to make a python-c interface so that C code could be run under the hood while the user calls everything in python. Much of this interface was implemeneted in numc.c. I received inputs as various types of PyObjects and had to parse them to get the data I needed. The types of data included a 61c_matrix, a tuple, a slice, and an int. After getting the data I needed, I could call the functions that performed the logic necessary to get the desired output. These functions only dealt with regular c objects and were implemented in matrix.c. In order to enable the python and C code to interact, I also had to enable the user to import the module. To do this, I read the python extension documentation and instantiated an extension based on the C files and set it up. 
+
+In order to optimize, I primarily used openmp and unrolling. These were our sole strategies for allocating and simple instructions. I used additional strategies for mul and pow. For mul, I also reordered the for loops to make it ikj instead of ijk. For pow, I implemented repeated squaring to reduce the number of muls called. Below, I will discuss each strategy in detail. I also implemented a fake 1D impelmentation using a contiguous block of memory in row major order to repreent the matrix that still allowed for normal matrix indexing. 
+
+- OpenMP:
+Since this project employs many loops to alter the values of matrices, I decided that OpenMP could be beneficial. I used pragma omp parallel for if() for most loops. I added the conditional if because the overhead cost actually makes operations slower for small matrices that do not benefit much from parallelism. In the event where there were nested loops, I opted to use openMP on the outer-most loop. I used this for every function.
+
+- Loop Reordering:
+A strategy I used in mul was to reorder the nested for loop structure from ijk to ikj to improve mul performance. I found ikj to be more beneficial to our runtime because it takes advantage of spacial locality, utilizing the cache in a more efficient way. This technique increased the number of cache hits, allowing the program to need to access memory less often. Memory access is very costly in terms of runtime, so this greatly reduced the cost of operations.
+
+- Fake 1D:
+Originally, the rows were far away from each other in memory, making reading and writing more expensive as it does not take advantage of spatial cache. I wanted a way to have the elements close to each other so they'd be easier to access. A strategy I used in allocate was to allocate a contiguous block of memory the size of the number of elements in the matrix. Then, I set row pointers to point to specific sections of this block. This strategy also enabled us to optimize in other functions. Our code to run faster since I could set values with single for loops instead of nested loops, which reduced the number of variables that would need to be tracked, updated, and compared. It also made unrolling simpler. 
+
+- Unrolling:
+For all functions, I implemented unrolling. Originally, each iteration of a loop performed one operation on an element of a matrix. However, this is inefficient as it has to constantly update i. By doing 4 operations in one iterations, i does not need to undergo as many updates or comparisons. In the assembly code, less jumps would need to be performed as there are now fewer iterations.
 
 
-In order to optimize, we primarily used openmp and unrolling. These were our sole strategies for allocating and simple instructions. We used additional strategies for mul and pow. For mul, we also reordered the for loops to make it ikj instead of ijk. For pow, we implemented repeated squaring to reduce the number of muls called. Below, we will discuss each strategy in detail. We also implemented a fake 1D impelmentation using a contiguous block of memory in row major order to repreent the matrix that still allowed for normal matrix indexing. 
-
-OpenMP:
-Since this project employs many loops to alter the values of matrices, we decided that OpenMP could be beneficial. We used pragma omp parallel for if() for most loops. We added the conditional if because the overhead cost actually makes operations slower for small matrices that do not benefit much from parallelism. In the event where there were nested loops, we opted to use openMP on the outer-most loop. We used this for every function.
-
-Loop Reordering:
-A strategy we used in mul was to reorder the nested for loop structure from ijk to ikj to improve mul performance. We found ikj to be more beneficial to our runtime because it takes advantage of spacial locality, utilizing the cache in a more efficient way. This technique increased the number of cache hits, allowing the program to need to access memory less often. Memory access is very costly in terms of runtime, so this greatly reduced the cost of operations.
-
-Fake 1D:
-Originally, the rows were far away from each other in memory, making reading and writing more expensive as it does not take advantage of spatial cache. We wanted a way to have the elements close to each other so they'd be easier to access. A strategy we used in allocate was to allocate a contiguous block of memory the size of the number of elements in the matrix. Then, we set row pointers to point to specific sections of this block. This strategy also enabled us to optimize in other functions. Our code to run faster since we could set values with single for loops instead of nested loops, which reduced the number of variables that would need to be tracked, updated, and compared. It also made unrolling simpler. 
-
-Unrolling:
-For all functions, we implemented unrolling. Originally, each iteration of a loop performed one operation on an element of a matrix. However, this is inefficient as it has to constantly update i. By doing 4 operations in one iterations, i does not need to undergo as many updates or comparisons. In the assembly code, less jumps would need to be performed as there are now fewer iterations.
-
-
-How to use Numc:
+## Usage
 
 In a python environment, import the numc package. This can be done in a python interpreter or at the top of your .py file
 
@@ -44,7 +43,7 @@ To specify the values of a specific row and generalize it along all rows, you ca
 
 `nc.Matrix(3, 1, [0, 1, 2])`
 
-Operations
+## Operations
 
 The `+` operator will add two matrices and return their sum. Input matrices must have the same dimensions.
 
@@ -59,7 +58,7 @@ The `-` operator placed in front of a single matrix will negate each element of 
 The `abs` operator will take in a matrix and return the matrix with the absolute value run on every element.
 
 
-Slicing
+## Slicing
 
 You may index into a matrix using a single int. If 2D, a 1D matrix will be returned.
 `>>>a = nc.Matrix(3, 3) `
